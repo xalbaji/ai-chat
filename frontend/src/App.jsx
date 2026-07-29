@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Bot, User, Send, Sparkles, Loader2 } from 'lucide-react';
 import './App.css';
 
 function App() {
@@ -53,22 +54,32 @@ function App() {
   return (
     <div className="chat-app">
       <header className="chat-header">
-        <h1>Simple AI Chatbot</h1>
+        <div className="header-title">
+          <Sparkles className="header-icon" size={22} />
+          <h1>Simple AI Chatbot</h1>
+        </div>
         <p>Student Activity Starter</p>
       </header>
 
       <div className="chat-box">
         {messages.map((msg, index) => (
           <div key={index} className={`chat-message ${msg.sender}`}>
-            <div className="avatar">{msg.sender === 'user' ? '👤' : '🤖'}</div>
+            <div className="avatar">
+              {msg.sender === 'user' ? <User size={18} /> : <Bot size={18} />}
+            </div>
             <div className="message-content">{msg.text}</div>
           </div>
         ))}
 
         {loading && (
           <div className="chat-message bot loading">
-            <div className="avatar">🤖</div>
-            <div className="message-content">Thinking...</div>
+            <div className="avatar">
+              <Bot size={18} />
+            </div>
+            <div className="message-content loading-content">
+              <Loader2 className="spinner" size={16} />
+              <span>Thinking...</span>
+            </div>
           </div>
         )}
         <div ref={chatEndRef} />
@@ -83,7 +94,8 @@ function App() {
           disabled={loading}
         />
         <button type="submit" disabled={loading || !input.trim()}>
-          Send
+          <Send size={16} />
+          <span>Send</span>
         </button>
       </form>
     </div>
