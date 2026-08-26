@@ -10,6 +10,8 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+// ⬆️ ADDED: Enabled URL-encoded form parsing above so Express can process textual form data alongside image uploads.
 
 // Routes
 app.use('/api/chat', chatRoutes);

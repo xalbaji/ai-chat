@@ -2,17 +2,27 @@ const { generateResponse } = require('../services/chatService');
 
 const handleChat = async (req, res) => {
   try {
-    const { message } = req.body;
+    const { message, history } = req.body;
+    const file = req.file;
 
-    if (!message || message.trim() === '') {
-      return res.status(400).json({ error: 'Message content is required.' });
+    if ((!message || message.trim() === '') && !file) {
+      return res.status(400).json({
+        type: 'text',
+        reply: 'Please type a message or upload an image.',
+      });
     }
 
-    const reply = await generateResponse(message);
-    res.json({ reply });
+    const parsedHistory = history ? JSON.parse(history) : [];
+    const responseData = await generateResponse(message, file, parsedHistory);
+
+    // Always return 200 with the responseData — the frontend handles type/image/reply
+    res.json(responseData);
   } catch (error) {
     console.error('Error handling chat request:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({
+      type: 'text',
+      reply: 'Internal server error. Please try again later.',
+    });
   }
 };
 
