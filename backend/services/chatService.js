@@ -1,7 +1,6 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-// ✅ VALID models as of August 2026 — removed all dead/404 models
-// Ordered by: cheapest/fastest first → premium last
+// ✅ VALID models — left completely untouched as requested
 const DEFAULT_MODELS = [
   "gemini-3.5-flash-lite",   // very cheap, very fast
   "gemini-3.1-flash-lite",   // ultra-cheap fallback
@@ -78,13 +77,23 @@ const generateResponse = async (userMessage, imageFile = null, history = []) => 
     if (!candidateModels.includes(m)) candidateModels.push(m);
   }
 
-  // ─── FORMAT HISTORY ───
-  const formattedHistory = history
+  // ─── FORMAT & SANITIZE HISTORY ───
+  let formattedHistory = history
     .filter((msg) => msg && typeof msg.content === "string" && msg.content.trim().length > 0)
     .map((msg) => ({
       role: msg.role === "assistant" ? "model" : "user",
       parts: [{ text: msg.content.trim() }],
     }));
+
+  // Google requirement 1: History must START with a 'user' role
+  while (formattedHistory.length > 0 && formattedHistory[0].role !== "user") {
+    formattedHistory.shift();
+  }
+
+  // Google requirement 2: History must NOT end with a 'model' role (strip trailing assistant messages)
+  while (formattedHistory.length > 0 && formattedHistory[formattedHistory.length - 1].role === "model") {
+    formattedHistory.pop();
+  }
 
   // ─── BUILD CURRENT TURN ───
   const currentParts = [];
@@ -146,7 +155,6 @@ const generateResponse = async (userMessage, imageFile = null, history = []) => 
   // ─── ALL MODELS FAILED ───
   console.error("All candidate Gemini models failed. Last error:", lastError);
 
-  // Return a friendly message instead of throwing, so the frontend can display it
   const isQuotaExhausted = lastError?.message?.includes("quota") || lastError?.status === 429;
   if (isQuotaExhausted) {
     return {
