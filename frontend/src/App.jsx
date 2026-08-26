@@ -1,334 +1,122 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
+
 import {
-  MessageSquare,
-  Plus,
-  Settings,
-  Moon,
-  Sun,
-  Send,
   Sparkles,
-  Code2,
-  Mail,
-  BarChart3,
-  Lightbulb,
-  MoreVertical,
-  Trash2,
-  ChevronLeft,
   Bot,
   User,
-  Clock,
-  CheckCheck,
-  Zap,
-  Command,
-  CornerDownLeft,
-  Loader2,
-  Pin,
-  History,
-  Search,
-  AlertCircle,
+  Send,
   Copy,
-  Check
+  Check,
+  Trash2,
+  MoreVertical,
+  MessageSquarePlus,
+  ChevronLeft,
+  Moon,
+  Sun,
+  Settings,
+  Zap,
+  Code2,
+  PenLine,
+  BarChart3,
+  Lightbulb,
+  ArrowUpRight,
+  CornerDownLeft,
+  RotateCcw,
+  ThumbsUp,
+  ThumbsDown,
+  Share2,
+  Clock,
+  MessageSquare,
+  Hash,
 } from 'lucide-react';
 import './App.css';
 
-/* ═══════════════════════════════════════════════════════════════
-   FRITZ AI — Premium Chat Interface (MERN Ready)
-   Files: App.jsx + App.css
-   Backend: Express API at http://localhost:5000/api/chat
-   Markdown: react-markdown + remark-gfm for rich formatting
-   ═══════════════════════════════════════════════════════════════ */
-
-const SUGGESTIONS = [
-  {
-    icon: Code2,
-    title: 'Write code',
-    desc: 'Write a React component for a dashboard with charts and tables',
-    accent: 'indigo'
-  },
-  {
-    icon: Mail,
-    title: 'Draft email',
-    desc: 'Draft a professional email to request a project deadline extension',
-    accent: 'emerald'
-  },
-  {
-    icon: BarChart3,
-    title: 'Analyze data',
-    desc: 'Explain how to analyze sales trends using Python and Pandas',
-    accent: 'amber'
-  },
-  {
-    icon: Lightbulb,
-    title: 'Brainstorm',
-    desc: 'Give me 10 startup ideas for AI-powered productivity tools in 2026',
-    accent: 'rose'
-  }
-];
-
-const CHAT_HISTORY = [
-  { id: 1, label: 'General Conversation', icon: MessageSquare, active: true, time: '2m ago', pinned: true },
-
-];
-
-const INITIAL_MESSAGES = [
-  {
-    id: 1,
-    role: 'assistant',
-    content: "Hello! I'm your AI assistant. How can I help you today?",
-    timestamp: new Date(Date.now() - 1000 * 60 * 2),
-    status: 'read'
-  }
-];
-
-/* ─── Sub-Components ─── */
-
-const StatusDot = ({ status = 'online' }) => (
-  <span className="status-dot-wrapper">
-    {status === 'online' && <span className={`status-ping status-${status}`} />}
-    <span className={`status-dot status-${status}`} />
-  </span>
-);
-
-const SidebarItem = ({ item, active, onClick }) => {
-  const Icon = item.icon;
-  return (
-    <button onClick={onClick} className={`sidebar-item ${active ? 'sidebar-item-active' : ''}`}>
-      {active && <div className="sidebar-active-indicator" />}
-      <div className={`sidebar-item-icon ${active ? 'sidebar-item-icon-active' : ''}`}>
-        <Icon size={16} strokeWidth={2} />
-      </div>
-      <div className="sidebar-item-content">
-        <span className="sidebar-item-label">{item.label}</span>
-        <span className="sidebar-item-meta">{item.time}</span>
-      </div>
-      {item.pinned && <Pin size={12} className="sidebar-item-pin" />}
-    </button>
-  );
-};
-
-const SuggestionCard = ({ item, index, onClick }) => {
-  const Icon = item.icon;
-  const accentMap = {
-    indigo: { bg: 'suggestion-bg-indigo', icon: 'suggestion-icon-indigo', orb: 'suggestion-orb-indigo' },
-    emerald: { bg: 'suggestion-bg-emerald', icon: 'suggestion-icon-emerald', orb: 'suggestion-orb-emerald' },
-    amber: { bg: 'suggestion-bg-amber', icon: 'suggestion-icon-amber', orb: 'suggestion-orb-amber' },
-    rose: { bg: 'suggestion-bg-rose', icon: 'suggestion-icon-rose', orb: 'suggestion-orb-rose' },
-  };
-  const a = accentMap[item.accent];
-
-  return (
-    <button
-      onClick={onClick}
-      className={`suggestion-card ${a.bg}`}
-      style={{ animationDelay: `${index * 80}ms` }}
-    >
-      <div className={`suggestion-orb ${a.orb}`} />
-      <div className="suggestion-content">
-        <div className={`suggestion-icon-wrap ${a.icon}`}>
-          <Icon size={18} strokeWidth={2} />
-        </div>
-        <div className="suggestion-text">
-          <h3>{item.title}</h3>
-          <p>{item.desc}</p>
-        </div>
-      </div>
-      <div className="suggestion-hint">
-        <CornerDownLeft size={12} />
-        <span>Click to try</span>
-      </div>
-    </button>
-  );
-};
-
-/* ─── Markdown Renderer ─── */
-
-const CodeBlock = ({ children, className }) => {
-  const [copied, setCopied] = useState(false);
-  const code = String(children).replace(/\n$/, '');
-  const lang = className ? className.replace('language-', '') : 'text';
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className="code-block-wrapper">
-      <div className="code-block-header">
-        <span className="code-lang">{lang}</span>
-        <button className="code-copy-btn" onClick={handleCopy}>
-          {copied ? <Check size={14} /> : <Copy size={14} />}
-          {copied ? 'Copied' : 'Copy'}
-        </button>
-      </div>
-      <pre className={className}><code>{children}</code></pre>
-    </div>
-  );
-};
-
-const markdownComponents = {
-  h1: ({ children }) => <h1 className="md-h1">{children}</h1>,
-  h2: ({ children }) => <h2 className="md-h2">{children}</h2>,
-  h3: ({ children }) => <h3 className="md-h3">{children}</h3>,
-  h4: ({ children }) => <h4 className="md-h4">{children}</h4>,
-  p: ({ children }) => <p className="md-p">{children}</p>,
-  ul: ({ children }) => <ul className="md-ul">{children}</ul>,
-  ol: ({ children }) => <ol className="md-ol">{children}</ol>,
-  li: ({ children }) => <li className="md-li">{children}</li>,
-  strong: ({ children }) => <strong className="md-strong">{children}</strong>,
-  em: ({ children }) => <em className="md-em">{children}</em>,
-  blockquote: ({ children }) => <blockquote className="md-blockquote">{children}</blockquote>,
-  hr: () => <hr className="md-hr" />,
-  a: ({ href, children }) => <a href={href} className="md-a" target="_blank" rel="noreferrer">{children}</a>,
-  code: ({ inline, children, className }) => {
-    if (inline) {
-      return <code className="md-code-inline">{children}</code>;
-    }
-    return <CodeBlock className={className}>{children}</CodeBlock>;
-  },
-  pre: ({ children }) => <>{children}</>,
-  table: ({ children }) => <div className="md-table-wrapper"><table className="md-table">{children}</table></div>,
-  thead: ({ children }) => <thead className="md-thead">{children}</thead>,
-  tbody: ({ children }) => <tbody className="md-tbody">{children}</tbody>,
-  tr: ({ children }) => <tr className="md-tr">{children}</tr>,
-  th: ({ children }) => <th className="md-th">{children}</th>,
-  td: ({ children }) => <td className="md-td">{children}</td>,
-};
-
-const MarkdownContent = ({ content }) => (
-  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-    {content}
-  </ReactMarkdown>
-);
-
-const MessageBubble = ({ message }) => {
-  const isUser = message.role === 'user';
-  const timeStr = message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  return (
-    <div className={`message-row ${isUser ? 'message-row-user' : 'message-row-assistant'}`}>
-      <div className={`message-avatar ${isUser ? 'message-avatar-user' : 'message-avatar-assistant'}`}>
-        {isUser ? <User size={16} /> : <Sparkles size={16} />}
-      </div>
-
-      <div className="message-body">
-        <div className="message-meta">
-          <span className="message-author">{isUser ? 'You' : 'AI Assistant'}</span>
-          <span className="message-time">
-            <Clock size={10} />
-            {timeStr}
-          </span>
-          {!isUser && message.status === 'read' && <CheckCheck size={12} className="message-read" />}
-        </div>
-
-        <div className={`message-bubble ${isUser ? 'message-bubble-user' : 'message-bubble-assistant'} ${message.isError ? 'message-bubble-error' : ''}`}>
-          {isUser ? (
-            <p className="md-p" style={{ margin: 0 }}>{message.content}</p>
-          ) : (
-            <MarkdownContent content={message.content} />
-          )}
-          {!isUser && !message.isError && <div className="message-bubble-accent" />}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const TypingIndicator = () => (
-  <div className="typing-row">
-    <div className="message-avatar message-avatar-assistant">
-      <Sparkles size={16} />
-    </div>
-    <div className="typing-bubble">
-      <span className="typing-dot" style={{ animationDelay: '0ms' }} />
-      <span className="typing-dot" style={{ animationDelay: '150ms' }} />
-      <span className="typing-dot" style={{ animationDelay: '300ms' }} />
-    </div>
-  </div>
-);
-
-/* ─── Main App ─── */
-
-export default function App() {
-  const [darkMode, setDarkMode] = useState(false);
+function App() {
+  const [messages, setMessages] = useState([
+    {
+      id: 1,
+      role: 'assistant',
+      content: "Hello! I'm your AI assistant. How can I help you today?",
+      timestamp: new Date(),
+    },
+  ]);
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState(INITIAL_MESSAGES);
-  const [isTyping, setIsTyping] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeChat, setActiveChat] = useState(1);
-  const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState(null);
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [darkMode, setDarkMode] = useState(true);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
-  }, [darkMode]);
+  const suggestions = [
+    { icon: Code2, label: 'Write code', color: '#4f46e5', prompt: 'Write a React component for a todo list with Tailwind' },
+    { icon: PenLine, label: 'Draft email', color: '#0891b2', prompt: 'Draft a professional email requesting time off' },
+    { icon: BarChart3, label: 'Analyze data', color: '#059669', prompt: 'Explain how to analyze quarterly sales trends' },
+    { icon: Lightbulb, label: 'Brainstorm', color: '#d97706', prompt: 'Give me 10 creative startup ideas' },
+  ];
 
-  useEffect(() => {
+  const history = [
+    { title: 'General Conversation', count: messages.length, active: true },
+  ];
+
+  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+  };
 
-  /* ═══ MERN: Express API Integration ═══ */
-  const handleSend = async (text = input) => {
-    if (!text.trim() || isTyping) return;
-    setError(null);
+  useEffect(() => { scrollToBottom(); }, [messages]);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const handleInputChange = (e) => {
+    setInput(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
+  };
+
+  const handleSend = async (overrideText) => {
+    const text = overrideText || input;
+    if (!text.trim() || isLoading) return;
 
     const userMsg = {
       id: Date.now(),
       role: 'user',
-      content: text,
+      content: text.trim(),
       timestamp: new Date(),
-      status: 'sent'
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    setMessages((prev) => [...prev, userMsg]);
     setInput('');
-    setIsTyping(true);
+    if (inputRef.current) inputRef.current.style.height = 'auto';
+    setIsLoading(true);
 
     try {
       const res = await fetch('http://localhost:5000/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          history: messages.map(m => ({ role: m.role, content: m.content }))
-        })
+        body: JSON.stringify({ message: userMsg.content }),
       });
-
-      if (!res.ok) {
-        throw new Error(`Server error: ${res.status}`);
-      }
-
       const data = await res.json();
 
-      const assistantMsg = {
+      const botMsg = {
         id: Date.now() + 1,
         role: 'assistant',
-        content: data.reply || data.response || data.message || 'No response from server.',
+        content: data.reply,
         timestamp: new Date(),
-        status: 'read'
       };
-
-      setMessages(prev => [...prev, assistantMsg]);
+      setMessages((prev) => [...prev, botMsg]);
     } catch (err) {
-      console.error('Chat API error:', err);
-      setError(err.message);
-
-      const errorMsg = {
+      setMessages((prev) => [...prev, {
         id: Date.now() + 1,
         role: 'assistant',
-        content: `⚠️ **Connection failed**: ${err.message}.\n\nPlease make sure your Express server is running on port 5000.`,
+        content: 'Something went wrong. Please try again.',
         timestamp: new Date(),
-        status: 'read',
-        isError: true
-      };
-
-      setMessages(prev => [...prev, errorMsg]);
+      }]);
     } finally {
-      setIsTyping(false);
+      setIsLoading(false);
     }
   };
 
@@ -339,197 +127,316 @@ export default function App() {
     }
   };
 
-  const isEmpty = messages.length <= 1;
+  const copyToClipboard = (text, id) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const clearChat = () => {
+    setMessages([{
+      id: Date.now(),
+      role: 'assistant',
+      content: "Hello! I'm your AI assistant. How can I help you today?",
+      timestamp: new Date(),
+    }]);
+  };
+
+  const formatTime = (date) => {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const isConsecutive = (index) => {
+    if (index === 0) return false;
+    return messages[index].role === messages[index - 1].role;
+  };
 
   return (
-    <div className="app-shell">
-      {/* ═══ Sidebar ═══ */}
-      <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
-        <div className="sidebar-inner">
-          {/* Logo */}
-          <div className="sidebar-logo">
-            <div className="sidebar-logo-icon">
-              <Sparkles size={20} />
+    <div className={`app-container ${darkMode ? 'dark' : ''}`}>
+      {/* SIDEBAR */}
+      <aside className={`sidebar ${showSidebar ? 'open' : 'closed'}`}>
+        <div className="sidebar-top">
+          <div className="brand">
+            <div className="brand-badge">
+              <Sparkles size={18} />
             </div>
-            <div>
-              <h1 className="sidebar-logo-title">Fritz AI</h1>
-              <p className="sidebar-logo-version">v2.0 Premium</p>
+            <div className="brand-text">
+              <span className="brand-name">Fritz AI</span>
+              <span className="brand-tag">Pro</span>
             </div>
           </div>
 
-          {/* New Chat */}
-          <div className="sidebar-newchat">
-            <button className="newchat-btn" onClick={() => { setMessages(INITIAL_MESSAGES); setActiveChat(1); }}>
-              <Plus size={16} className="newchat-icon" />
-              <span>New Chat</span>
-            </button>
-          </div>
-
-          {/* Search */}
-          <div className="sidebar-search">
-            <Search size={14} />
-            <input type="text" placeholder="Search conversations..." />
-          </div>
-
-          {/* History */}
-          <div className="sidebar-history">
-            <div className="sidebar-section-label">
-              <History size={12} />
-              Recent
+          <button className="new-chat-btn" onClick={clearChat}>
+            <div className="new-chat-icon">
+              <MessageSquarePlus size={18} />
             </div>
-            {CHAT_HISTORY.map(item => (
-              <SidebarItem
-                key={item.id}
-                item={item}
-                active={activeChat === item.id}
-                onClick={() => setActiveChat(item.id)}
-              />
+            <span>New Chat</span>
+            <div className="kbd-hint">
+              <CornerDownLeft size={12} />
+            </div>
+          </button>
+        </div>
+
+        <div className="sidebar-scroll">
+          <div className="section-header">
+            <Hash size={13} />
+            <span>Recent Chats</span>
+          </div>
+          <div className="history-list">
+            {history.map((item, i) => (
+              <div key={i} className={`history-item ${item.active ? 'active' : ''}`}>
+                <div className="history-glow" />
+                <MessageSquare size={15} className="history-icon" />
+                <div className="history-body">
+                  <span className="history-title">{item.title}</span>
+                  <span className="history-meta">{item.count} messages</span>
+                </div>
+                {item.active && <div className="history-active-dot" />}
+              </div>
             ))}
           </div>
+        </div>
 
-          {/* Bottom Actions */}
-          <div className="sidebar-footer">
-            <button className="sidebar-footer-btn" onClick={() => setDarkMode(!darkMode)}>
+        <div className="sidebar-bottom">
+          <div className="sidebar-divider" />
+          <button className="menu-item" onClick={() => setDarkMode(!darkMode)}>
+            <div className="menu-icon">
               {darkMode ? <Sun size={16} /> : <Moon size={16} />}
-              <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
-            </button>
-            <button className="sidebar-footer-btn">
-              <Settings size={16} className="sidebar-settings-icon" />
-              <span>Settings</span>
-            </button>
+            </div>
+            <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+          </button>
+          <button className="menu-item">
+            <div className="menu-icon">
+              <Settings size={16} />
+            </div>
+            <span>Settings</span>
+          </button>
+          <div className="user-chip">
+            <div className="user-avatar-mini">
+              <User size={14} />
+            </div>
+            <div className="user-info">
+              <span className="user-name">Melvin Suan</span>
+              <span className="user-plan">Premium</span>
+            </div>
           </div>
         </div>
       </aside>
 
-      {/* ═══ Main Chat ═══ */}
-      <main className="main">
-        {/* Decorative background */}
-        <div className="main-bg-decor">
-          <div className="bg-orb bg-orb-1" />
-          <div className="bg-orb bg-orb-2" />
-          <div className="bg-orb bg-orb-3" />
-        </div>
-
-        {/* Header */}
-        <header className="chat-header">
-          <div className="chat-header-left">
-            {!sidebarOpen && (
-              <button className="header-btn" onClick={() => setSidebarOpen(true)}>
-                <ChevronLeft size={18} />
-              </button>
-            )}
-            <div className="header-avatar">
-              <Bot size={18} />
-            </div>
-            <div>
-              <h2 className="header-title">AI Assistant</h2>
-              <div className="header-status">
-                <StatusDot status="online" />
-                <span>Always online</span>
+      {/* MAIN CONTENT */}
+      <main className="main-content">
+        <header className="main-header">
+          <div className="header-left">
+            <button className="header-btn" onClick={() => setShowSidebar(!showSidebar)}>
+              <ChevronLeft size={18} style={{ transform: showSidebar ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.3s ease' }} />
+            </button>
+            <div className="header-title-group">
+              <div className="header-avatar">
+                <Bot size={18} />
+              </div>
+              <div>
+                <div className="header-title">AI Assistant</div>
+                <div className="header-subtitle">
+                  <span className="live-dot" />
+                  <span>Always online</span>
+                </div>
               </div>
             </div>
           </div>
-
-          <div className="chat-header-right">
-            <button className="header-btn header-btn-danger" onClick={() => setMessages(INITIAL_MESSAGES)}>
-              <Trash2 size={18} />
+          <div className="header-actions">
+            <button className="header-btn" title="Clear chat" onClick={clearChat}>
+              <RotateCcw size={16} />
             </button>
-            <button className="header-btn">
-              <MoreVertical size={18} />
+            <button className="header-btn" title="More">
+              <MoreVertical size={16} />
             </button>
           </div>
         </header>
 
-        {/* Messages */}
-        <div className={`chat-messages ${isEmpty ? 'chat-messages-empty' : ''}`}>
-          {isEmpty && (
-            <div className="welcome-screen">
-              <div className="welcome-badge">
-                <div className="welcome-badge-glow" />
-                <div className="welcome-badge-inner">
-                  <Sparkles size={14} />
+        <div className="chat-scroll">
+          <div className="chat-bg" />
+
+          {/* WELCOME SCREEN */}
+          {messages.length === 1 && messages[0].role === 'assistant' && (
+            <div className="welcome-wrap">
+              <div className="welcome-hero">
+                <div className="hero-ring">
+                  <div className="hero-ring-inner">
+                    <Sparkles size={32} />
+                  </div>
+                </div>
+                <div className="hero-badge">
+                  <Zap size={12} />
                   <span>Fritz AI</span>
                 </div>
+                <h1 className="hero-title">
+                  Hi, This is Fritz AI.<br />
+                  How can I help you today?
+                </h1>
+                <p className="hero-desc">
+                  Ask me anything — coding, writing, analysis,<br />
+                  brainstorming, or just a chat.
+                </p>
               </div>
 
-              <h1 className="welcome-title">
-                Hi, This is Fritz AI.
-                <br />
-                <span>How can I help you today?</span>
-              </h1>
-
-              <p className="welcome-subtitle">
-                Ask me anything — coding, writing, analysis, brainstorming, or just a chat.
-                I'm powered by advanced language models to assist you.
-              </p>
-
-              <div className="suggestions-grid">
-                {SUGGESTIONS.map((item, i) => (
-                  <SuggestionCard
-                    key={item.title}
-                    item={item}
-                    index={i}
-                    onClick={() => handleSend(item.desc)}
-                  />
+              <div className="suggestion-grid">
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    className="suggestion-tile"
+                    onClick={() => handleSend(s.prompt)}
+                    style={{ animationDelay: `${0.15 + i * 0.07}s` }}
+                  >
+                    <div className="tile-accent" style={{ background: s.color }} />
+                    <div className="tile-icon" style={{ color: s.color, background: s.color + '12' }}>
+                      <s.icon size={20} />
+                    </div>
+                    <div className="tile-body">
+                      <span className="tile-label">{s.label}</span>
+                      <span className="tile-desc">{s.prompt.slice(0, 38)}...</span>
+                    </div>
+                    <ArrowUpRight size={15} className="tile-arrow" />
+                  </button>
                 ))}
               </div>
             </div>
           )}
 
-          <div className="messages-list">
-            {messages.map(msg => (
-              <MessageBubble key={msg.id} message={msg} />
-            ))}
-            {isTyping && <TypingIndicator />}
+          {/* MESSAGE FEED */}
+          <div className="message-list">
+            {messages.map((msg, index) => {
+              const consecutive = isConsecutive(index);
+              return (
+                <div
+                  key={msg.id}
+                  className={`msg-row ${msg.role} ${consecutive ? 'consecutive' : ''}`}
+                >
+                  {!consecutive && (
+                    <div className="msg-avatar-wrap">
+                      <div className={`msg-avatar ${msg.role}`}>
+                        {msg.role === 'user' ? <User size={15} /> : <Sparkles size={15} />}
+                      </div>
+                    </div>
+                  )}
+                  {consecutive && <div className="msg-avatar-spacer" />}
+
+                  <div className="msg-body">
+                    {!consecutive && (
+                      <div className="msg-meta">
+                        <span className="msg-author">{msg.role === 'user' ? 'You' : 'AI Assistant'}</span>
+                        <span className="msg-time">
+                          <Clock size={11} />
+                          {formatTime(msg.timestamp)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="msg-bubble">
+                      {msg.role === 'assistant' ? (
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                          components={{
+                            h1: ({ node, ...props }) => <h1 className="markdown-h1" {...props} />,
+                            h2: ({ node, ...props }) => <h2 className="markdown-h2" {...props} />,
+                            h3: ({ node, ...props }) => <h3 className="markdown-h3" {...props} />,
+                            p: ({ node, ...props }) => <p className="markdown-p" {...props} />,
+                            ul: ({ node, ...props }) => <ul className="markdown-ul" {...props} />,
+                            ol: ({ node, ...props }) => <ol className="markdown-ol" {...props} />,
+                            li: ({ node, ...props }) => <li className="markdown-li" {...props} />,
+                            code: ({ node, inline, ...props }) =>
+                              inline ? (
+                                <code className="markdown-inline-code" {...props} />
+                              ) : (
+                                <pre className="markdown-code-block">
+                                  <code {...props} />
+                                </pre>
+                              ),
+                          }}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      ) : (
+                        <p className="markdown-p">{msg.content}</p>
+                      )}
+                    </div>
+
+                    {msg.role === 'assistant' && (
+                      <div className="msg-toolbar">
+                        <button
+                          className="tool-btn"
+                          onClick={() => copyToClipboard(msg.content, msg.id)}
+                          title="Copy"
+                        >
+                          {copiedId === msg.id ? <Check size={13} /> : <Copy size={13} />}
+                          <span>{copiedId === msg.id ? 'Copied' : 'Copy'}</span>
+                        </button>
+                        <button className="tool-btn" title="Like">
+                          <ThumbsUp size={13} />
+                        </button>
+                        <button className="tool-btn" title="Dislike">
+                          <ThumbsDown size={13} />
+                        </button>
+                        <button className="tool-btn" title="Share">
+                          <Share2 size={13} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {isLoading && (
+              <div className="msg-row assistant">
+                <div className="msg-avatar-wrap">
+                  <div className="msg-avatar assistant">
+                    <Sparkles size={15} />
+                  </div>
+                </div>
+                <div className="msg-body">
+                  <div className="msg-meta">
+                    <span className="msg-author">AI Assistant</span>
+                  </div>
+                  <div className="typing-box">
+                    <div className="typing-wave">
+                      <span /><span /><span />
+                    </div>
+                    <span className="typing-label">Thinking</span>
+                  </div>
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
         </div>
 
-        {/* Input */}
-        <div className="chat-input-area">
-          <div className="chat-input-inner">
-            {error && (
-              <div className="input-error-banner">
-                <AlertCircle size={14} />
-                <span>{error}</span>
-              </div>
-            )}
-            <div className="input-toolbar">
-              <div className="input-toolbar-chip">
-                <Zap size={12} />
-                <span>Pro Mode</span>
-              </div>
-              <div className="input-toolbar-chip">
-                <Command size={12} />
-                <span>Shortcuts</span>
-              </div>
-            </div>
-
+        {/* INPUT FORM */}
+        <div className="chat-footer">
+          <div className="input-shell">
             <div className="input-box">
               <textarea
                 ref={inputRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 placeholder="Message AI Assistant..."
                 rows={1}
-                className="input-textarea"
+                disabled={isLoading}
               />
               <button
+                className={`send-fab ${input.trim() && !isLoading ? 'active' : ''}`}
                 onClick={() => handleSend()}
-                disabled={!input.trim() || isTyping}
-                className={`input-send ${input.trim() && !isTyping ? 'input-send-active' : ''}`}
+                disabled={!input.trim() || isLoading}
               >
-                {isTyping ? <Loader2 size={18} className="spin" /> : <Send size={16} />}
+                <ArrowUpRight size={18} />
               </button>
             </div>
-
-            <p className="input-disclaimer">
-              AI can make mistakes. Consider verifying important information.
-            </p>
           </div>
+          <p className="footer-note">AI can make mistakes. Consider verifying important information.</p>
         </div>
       </main>
     </div>
   );
 }
+
+export default App;
