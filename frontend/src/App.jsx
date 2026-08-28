@@ -17,6 +17,15 @@ import {
   Moon,
   Sun,
   Settings,
+  Search,
+  Images,
+  Plug,
+  Telescope,
+  PanelLeft,
+  ChevronDown,
+  ExternalLink,
+  CircleHelp,
+  LogIn,
   Code2,
   PenLine,
   BarChart3,
@@ -31,8 +40,9 @@ import {
   X,
 } from 'lucide-react';
 import './App.css';
+import { AppLogo } from './components/AppLogo';
 
-function App() {
+export default function App() {
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -48,10 +58,12 @@ function App() {
   const [copiedId, setCopiedId] = useState(null);
   const [showSidebar, setShowSidebar] = useState(true);
   const [darkMode, setDarkMode] = useState(true);
+  const [isActivelyTyping, setIsActivelyTyping] = useState(false);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
   const suggestions = [
     { icon: Code2, label: 'Write code', color: '#4f46e5', prompt: 'Write a React component for a todo list with Tailwind' },
@@ -68,13 +80,29 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  useEffect(() => { scrollToBottom(); }, [messages]);
+  useEffect(() => {
+    if (messages.length > 1) {
+      scrollToBottom();
+    }
+  }, [messages]);
   useEffect(() => { inputRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
+  }, []);
 
   const handleInputChange = (e) => {
     setInput(e.target.value);
     e.target.style.height = 'auto';
     e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px';
+
+    setIsActivelyTyping(true);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      setIsActivelyTyping(false);
+    }, 1500);
   };
 
   const handleFileSelect = (file) => {
@@ -84,17 +112,17 @@ function App() {
   };
 
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (file) handleFileSelect(file);
   };
 
   const handlePaste = (e) => {
     const items = e.clipboardData?.items;
     if (!items) return;
-    for (const item of items) {
+    for (const item of Array.from(items)) {
       if (item.type.indexOf('image') !== -1) {
         const file = item.getAsFile();
-        handleFileSelect(file);
+        if (file) handleFileSelect(file);
         break;
       }
     }
@@ -107,6 +135,85 @@ function App() {
       setImagePreview(null);
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const getSimulatedResponse = (text) => {
+    const lower = text.toLowerCase();
+    if (lower.includes('todo') || lower.includes('react')) {
+      return `Here is a clean React component for a Todo list built with Tailwind CSS:
+
+\`\`\`jsx
+import React, { useState } from 'react';
+import { Check, Trash2, Plus } from 'lucide-react';
+
+export default function TodoList() {
+  const [todos, setTodos] = useState([
+    { id: 1, text: 'Explore interactive fluid canvas background', done: true },
+    { id: 2, text: 'Connect JIM AI Assistant API', done: false }
+  ]);
+  const [text, setText] = useState('');
+
+  const addTodo = (e) => {
+    e.preventDefault();
+    if (!text.trim()) return;
+    setTodos([...todos, { id: Date.now(), text: text.trim(), done: false }]);
+    setText('');
+  };
+
+  return (
+    <div className="max-w-md mx-auto p-6 bg-slate-900 text-white rounded-2xl shadow-xl border border-slate-800">
+      <h2 className="text-xl font-bold mb-4">Todo List</h2>
+      <form onSubmit={addTodo} className="flex gap-2 mb-4">
+        <input 
+          value={text} 
+          onChange={(e) => setText(e.target.value)}
+          placeholder="New task..."
+          className="flex-1 bg-slate-800 px-4 py-2 rounded-lg border border-slate-700 outline-none focus:border-indigo-500"
+        />
+        <button type="submit" className="p-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg">
+          <Plus size={20} />
+        </button>
+      </form>
+    </div>
+  );
+}
+\`\`\`
+Let me know if you'd like me to add local storage persistence or filtering!`;
+    }
+
+    if (lower.includes('email') || lower.includes('time off')) {
+      return `### Subject: Time Off Request – Melvin Suan
+
+Dear [Manager's Name],
+
+I am writing to formally request time off from **[Start Date]** to **[End Date]** for personal reasons. 
+
+Before departing, I will ensure that:
+1. All critical deliverables and ongoing sprint tasks are up-to-date.
+2. My team members are briefed on ongoing coverage.
+3. Relevant handoff documents are shared in our team repository.
+
+Thank you for considering my request. Please let me know if you need any additional details.
+
+Best regards,  
+**Melvin Suan**`;
+    }
+
+    if (lower.includes('startup') || lower.includes('ideas')) {
+      return `Here are **4 high-potential startup ideas** combining modern AI and interactive UX:
+
+1. **Ambient Flow AI**: Real-time fluid neural backgrounds that dynamically visualize biometric focus and brainwave states during deep work sessions.
+2. **AutoDoc Synthesizer**: AI pipeline transforming engineering architecture diagrams directly into verified codebases and infrastructure templates.
+3. **Adaptive Canvas Tutor**: Interactive STEM learning platform using physics engines and interactive mathematical formulas ($$E = mc^2$$).
+4. **Contextual Meeting Agent**: Autonomous meeting note summarizer with instant action-item delegation into Jira/Linear.`;
+    }
+
+    return `I received your prompt: **"${text}"**. 
+
+How would you like to proceed? I can help you:
+- 🛠️ Write or debug code in JavaScript, React, Python, etc.
+- 🎨 Design interactive UI components and animated backgrounds.
+- 📊 Analyze data patterns or brainstorm creative concepts.`;
   };
 
   const handleSend = async (overrideText) => {
@@ -149,6 +256,8 @@ function App() {
         method: 'POST',
         body: formData,
       });
+
+      if (!res.ok) throw new Error('API request failed');
       const data = await res.json();
 
       const botMsg = {
@@ -159,13 +268,19 @@ function App() {
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, botMsg]);
-    } catch (err) {
-      setMessages((prev) => [...prev, {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: 'Something went wrong. Please try again.',
-        timestamp: new Date(),
-      }]);
+    } catch {
+      // Fallback AI response simulation if backend API is offline
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      const simulatedReply = getSimulatedResponse(userMsg.content);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: simulatedReply,
+          timestamp: new Date(),
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -185,12 +300,14 @@ function App() {
   };
 
   const clearChat = () => {
-    setMessages([{
-      id: Date.now(),
-      role: 'assistant',
-      content: "Hello! I'm your AI assistant. How can I help you today?",
-      timestamp: new Date(),
-    }]);
+    setMessages([
+      {
+        id: Date.now(),
+        role: 'assistant',
+        content: "Hello! I'm your AI assistant. How can I help you today?",
+        timestamp: new Date(),
+      },
+    ]);
   };
 
   const formatTime = (date) => {
@@ -203,6 +320,7 @@ function App() {
   };
 
   const isWelcomeVisible = messages.length === 1 && messages[0].role === 'assistant';
+  const isUserTyping = input.trim().length > 0 || isActivelyTyping;
 
   return (
     <div className={`app-container ${darkMode ? 'dark' : ''}`}>
@@ -211,28 +329,25 @@ function App() {
         <div className="sidebar-top">
           <div className="brand">
             <div className="brand-badge">
-              <Sparkles size={16} strokeWidth={2} />
+              <AppLogo size={25} rounded="7px" glow={false} />
             </div>
-            <div className="brand-text">
-              <span className="brand-name">Fritz AI</span>
-              <span className="brand-tag">Pro</span>
-            </div>
+            <button className="sidebar-collapse-btn" onClick={() => setShowSidebar(false)} aria-label="Close sidebar">
+              <PanelLeft size={18} strokeWidth={1.7} />
+            </button>
           </div>
 
           <button className="new-chat-btn" onClick={clearChat}>
-            <div className="new-chat-icon">
-              <MessageSquarePlus size={16} strokeWidth={2} />
-            </div>
-            <span>New Chat</span>
-            <span className="kbd-hint">⌘K</span>
+            <MessageSquarePlus size={18} strokeWidth={1.8} />
+            <span>New chat</span>
           </button>
+
+          <button className="nav-item"><Search size={18} strokeWidth={1.8} /><span>Search chats</span></button>
+          <button className="nav-item"><Images size={18} strokeWidth={1.8} /><span>Images</span></button>
+          <button className="nav-item"><Plug size={18} strokeWidth={1.8} /><span>Plugins</span></button>
+          <button className="nav-item"><Telescope size={18} strokeWidth={1.8} /><span>Deep research</span></button>
         </div>
 
         <div className="sidebar-scroll">
-          <div className="section-header">
-            <Hash size={12} strokeWidth={2.5} />
-            <span>Recent Chats</span>
-          </div>
           <div className="history-list">
             {history.map((item, i) => (
               <div key={i} className={`history-item ${item.active ? 'active' : ''}`}>
@@ -248,24 +363,16 @@ function App() {
         </div>
 
         <div className="sidebar-bottom">
-          <button className="menu-item" onClick={() => setDarkMode(!darkMode)}>
-            <div className="menu-icon">
-              {darkMode ? <Sun size={15} strokeWidth={2} /> : <Moon size={15} strokeWidth={2} />}
-            </div>
-            <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
-          </button>
           <button className="menu-item">
-            <div className="menu-icon">
-              <Settings size={15} strokeWidth={2} />
-            </div>
-            <span>Settings</span>
+            <span><span className="menu-icon"><Sparkles size={17} strokeWidth={1.8} /></span>See plans and pricing</span>
+            <ExternalLink size={14} strokeWidth={1.8} />
           </button>
-          <div className="user-chip">
-            <div className="user-avatar-mini">MS</div>
-            <div className="user-info">
-              <span className="user-name">Melvin Suan</span>
-              <span className="user-plan">Premium</span>
-            </div>
+          <button className="menu-item"><span><span className="menu-icon"><Settings size={17} strokeWidth={1.8} /></span>Settings</span></button>
+          <button className="menu-item"><span><span className="menu-icon"><CircleHelp size={17} strokeWidth={1.8} /></span>Help</span><ExternalLink size={14} strokeWidth={1.8} /></button>
+          <div className="login-prompt">
+            <strong>Get responses tailored to you</strong>
+            <p>Log in to get answers based on saved chats, plus create images and upload files.</p>
+            <button className="login-btn"><LogIn size={16} strokeWidth={1.8} />Log in</button>
           </div>
         </div>
       </aside>
@@ -279,41 +386,15 @@ function App() {
               onClick={() => setShowSidebar(!showSidebar)}
               aria-label={showSidebar ? 'Close sidebar' : 'Open sidebar'}
             >
-              <ChevronLeft
-                size={18}
-                strokeWidth={1.5}
-                style={{
-                  transform: showSidebar ? 'rotate(0deg)' : 'rotate(180deg)',
-                  transition: 'transform 0.3s ease'
-                }}
-              />
+              <PanelLeft size={18} strokeWidth={1.7} />
             </button>
             <div className="header-title-group">
-              <div>
-                <div className="header-title">AI Assistant</div>
-                <div className="header-subtitle">
-                  <span className="live-dot" />
-                  <span>Always online</span>
-                </div>
-              </div>
+              <div className="header-title">JIM AI <ChevronDown size={15} strokeWidth={1.8} /></div>
             </div>
           </div>
           <div className="header-actions">
-            <button
-              className="header-btn"
-              title="Clear chat"
-              onClick={clearChat}
-              aria-label="Clear chat"
-            >
-              <RotateCcw size={15} strokeWidth={1.5} />
-            </button>
-            <button
-              className="header-btn"
-              title="More options"
-              aria-label="More options"
-            >
-              <MoreVertical size={15} strokeWidth={1.5} />
-            </button>
+            <button className="auth-btn login">Log in</button>
+            <button className="auth-btn signup">Sign up for free</button>
           </div>
         </header>
 
@@ -323,9 +404,12 @@ function App() {
             <div className="welcome-wrap">
               <div className="welcome-hero">
                 <div className="hero-mark">
-                  <Sparkles size={20} strokeWidth={2} />
+                  <AppLogo size={44} rounded="14px" glow={true} />
                 </div>
-                <h1 className="hero-title">How can I help you today?</h1>
+                <h1 className="hero-title">
+                  How can I help you <br />
+                  <span className="italic-text">today, Melvin?</span>
+                </h1>
                 <p className="hero-desc">
                   Ask me anything — coding, writing, analysis, brainstorming, or image generation.
                 </p>
@@ -352,134 +436,165 @@ function App() {
           )}
 
           {/* MESSAGE FEED */}
-          <div className="message-list">
-            {messages.map((msg, index) => {
-              const consecutive = isConsecutive(index);
-              return (
-                <div
-                  key={msg.id}
-                  className={`msg-row ${msg.role} ${consecutive ? 'consecutive' : ''}`}
-                >
-                  {!consecutive && (
-                    <div className="msg-avatar-wrap">
-                      <div className={`msg-avatar ${msg.role}`}>
-                        {msg.role === 'user' ? 'MS' : <Sparkles size={14} strokeWidth={2} />}
-                      </div>
-                    </div>
-                  )}
-                  {consecutive && <div className="msg-avatar-spacer" />}
-
-                  <div className="msg-body">
+          {!isWelcomeVisible && (
+            <div className="message-list">
+              {messages.map((msg, index) => {
+                const consecutive = isConsecutive(index);
+                return (
+                  <div
+                    key={msg.id}
+                    className={`msg-row ${msg.role} ${consecutive ? 'consecutive' : ''}`}
+                  >
                     {!consecutive && (
-                      <div className="msg-meta">
-                        <span className="msg-author">
-                          {msg.role === 'user' ? 'Melvin Suan' : 'Fritz AI'}
-                        </span>
-                        <span className="msg-time">
-                          <Clock size={10} strokeWidth={2} />
-                          {formatTime(msg.timestamp)}
-                        </span>
-                      </div>
-                    )}
-                    <div className="msg-bubble">
-                      {msg.image && (
-                        <div className="msg-image-attachment">
-                          <img src={msg.image} alt="Uploaded attachment" />
-                        </div>
-                      )}
-
-                      {msg.generatedImage && (
-                        <div className="msg-generated-image">
-                          <img src={msg.generatedImage} alt="Generated content" />
-                        </div>
-                      )}
-
-                      {msg.role === 'assistant' ? (
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm, remarkMath]}
-                          rehypePlugins={[rehypeKatex]}
-                          components={{
-                            h1: ({ node, ...props }) => <h1 className="markdown-h1" {...props} />,
-                            h2: ({ node, ...props }) => <h2 className="markdown-h2" {...props} />,
-                            h3: ({ node, ...props }) => <h3 className="markdown-h3" {...props} />,
-                            p: ({ node, ...props }) => <p className="markdown-p" {...props} />,
-                            ul: ({ node, ...props }) => <ul className="markdown-ul" {...props} />,
-                            ol: ({ node, ...props }) => <ol className="markdown-ol" {...props} />,
-                            li: ({ node, ...props }) => <li className="markdown-li" {...props} />,
-                            code: ({ node, inline, ...props }) =>
-                              inline ? (
-                                <code className="markdown-inline-code" {...props} />
-                              ) : (
-                                <pre className="markdown-code-block">
-                                  <code {...props} />
-                                </pre>
-                              ),
-                          }}
-                        >
-                          {msg.content}
-                        </ReactMarkdown>
-                      ) : (
-                        <p className="markdown-p">{msg.content}</p>
-                      )}
-                    </div>
-
-                    {msg.role === 'assistant' && (
-                      <div className="msg-toolbar">
-                        <button
-                          className="tool-btn"
-                          onClick={() => copyToClipboard(msg.content, msg.id)}
-                          title="Copy to clipboard"
-                        >
-                          {copiedId === msg.id ? (
-                            <Check size={12} strokeWidth={2} />
+                      <div className="msg-avatar-wrap">
+                        <div className={`msg-avatar ${msg.role}`}>
+                          {msg.role === 'user' ? (
+                            'MS'
                           ) : (
-                            <Copy size={12} strokeWidth={2} />
+                            <AppLogo size={36} rounded="12px" glow={false} />
                           )}
-                          <span>{copiedId === msg.id ? 'Copied' : 'Copy'}</span>
-                        </button>
-                        <button className="tool-btn" title="Helpful">
-                          <ThumbsUp size={12} strokeWidth={2} />
-                        </button>
-                        <button className="tool-btn" title="Not helpful">
-                          <ThumbsDown size={12} strokeWidth={2} />
-                        </button>
-                        <button className="tool-btn" title="Share">
-                          <Share2 size={12} strokeWidth={2} />
-                        </button>
+                        </div>
                       </div>
                     )}
-                  </div>
-                </div>
-              );
-            })}
+                    {consecutive && <div className="msg-avatar-spacer" />}
 
-            {isLoading && (
-              <div className="msg-row assistant">
-                <div className="msg-avatar-wrap">
-                  <div className="msg-avatar assistant">
-                    <Sparkles size={14} strokeWidth={2} />
-                  </div>
-                </div>
-                <div className="msg-body">
-                  <div className="msg-meta">
-                    <span className="msg-author">Fritz AI</span>
-                  </div>
-                  <div className="typing-box">
-                    <div className="typing-wave">
-                      <span /><span /><span />
+                    <div className="msg-body">
+                      {!consecutive && (
+                        <div className="msg-meta">
+                          <span className="msg-author">
+                            {msg.role === 'user' ? 'Melvin Suan' : 'JIM AI'}
+                          </span>
+                          <span className="msg-time">
+                            <Clock size={10} strokeWidth={2} />
+                            {formatTime(msg.timestamp)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="msg-bubble">
+                        {msg.image && (
+                          <div className="msg-image-attachment">
+                            <img src={msg.image} alt="Uploaded attachment" />
+                          </div>
+                        )}
+
+                        {msg.generatedImage && (
+                          <div className="msg-generated-image">
+                            <img src={msg.generatedImage} alt="Generated content" />
+                          </div>
+                        )}
+
+                        {msg.role === 'assistant' ? (
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeKatex]}
+                            components={{
+                              h1: ({ ...props }) => <h1 className="markdown-h1" {...props} />,
+                              h2: ({ ...props }) => <h2 className="markdown-h2" {...props} />,
+                              h3: ({ ...props }) => <h3 className="markdown-h3" {...props} />,
+                              p: ({ ...props }) => <p className="markdown-p" {...props} />,
+                              ul: ({ ...props }) => <ul className="markdown-ul" {...props} />,
+                              ol: ({ ...props }) => <ol className="markdown-ol" {...props} />,
+                              li: ({ ...props }) => <li className="markdown-li" {...props} />,
+                              code: ({ className, children, ...props }) => {
+                                const isInline = !className && typeof children === 'string' && !children.includes('\n');
+                                return isInline ? (
+                                  <code className="markdown-inline-code" {...props}>
+                                    {children}
+                                  </code>
+                                ) : (
+                                  <pre className="markdown-code-block">
+                                    <code className={className} {...props}>
+                                      {children}
+                                    </code>
+                                  </pre>
+                                );
+                              },
+                            }}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
+                        ) : (
+                          <p className="markdown-p">{msg.content}</p>
+                        )}
+                      </div>
+
+                      {msg.role === 'assistant' && (
+                        <div className="msg-toolbar">
+                          <button
+                            className="tool-btn"
+                            onClick={() => copyToClipboard(msg.content, msg.id)}
+                            title="Copy to clipboard"
+                          >
+                            {copiedId === msg.id ? (
+                              <Check size={12} strokeWidth={2} />
+                            ) : (
+                              <Copy size={12} strokeWidth={2} />
+                            )}
+                            <span>{copiedId === msg.id ? 'Copied' : 'Copy'}</span>
+                          </button>
+                          <button className="tool-btn" title="Helpful">
+                            <ThumbsUp size={12} strokeWidth={2} />
+                          </button>
+                          <button className="tool-btn" title="Not helpful">
+                            <ThumbsDown size={12} strokeWidth={2} />
+                          </button>
+                          <button className="tool-btn" title="Share">
+                            <Share2 size={12} strokeWidth={2} />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <span className="typing-label">Thinking</span>
+                  </div>
+                );
+              })}
+
+              {isLoading && (
+                <div className="msg-row assistant">
+                  <div className="msg-avatar-wrap">
+                    <div className="msg-avatar assistant">
+                      <AppLogo size={36} rounded="12px" glow={true} />
+                    </div>
+                  </div>
+                  <div className="msg-body">
+                    <div className="typing-box">
+                      <div className="typing-wave">
+                        <span /><span /><span />
+                      </div>
+                      <span className="typing-label">Neural Synthesis in Progress...</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
         </div>
 
         {/* INPUT FORM */}
         <div className="chat-footer">
-          <div className="input-shell">
+          {/* DYNAMIC STATUS BAR */}
+          {(isUserTyping || isLoading) && (
+            <div className="chat-status-bar">
+              {isUserTyping && !isLoading && (
+                <div className="status-pill typing">
+                  <span className="pill-pulse-dot" />
+                  <span>Neural Pulse Active · Drafting prompt...</span>
+                </div>
+              )}
+              {isLoading && (
+                <div className="status-pill processing">
+                  <span className="pill-pulse-dot" />
+                  <span>3D Neural Core synthesizing response...</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div
+            className={`input-shell ${isUserTyping && !isLoading ? 'is-typing neural-pulse' : ''} ${isLoading ? 'is-processing' : ''}`}
+          >
+            {isLoading && <div className="processing-indicator-line" />}
+
             {imagePreview && (
               <div className="image-preview-bar">
                 <div className="image-preview-thumb">
@@ -487,9 +602,9 @@ function App() {
                   <button
                     className="image-preview-remove"
                     onClick={removeSelectedImage}
-                    aria-label="Remove image"
+                    title="Remove image"
                   >
-                    <X size={10} strokeWidth={2.5} />
+                    <X size={12} />
                   </button>
                 </div>
               </div>
@@ -504,13 +619,12 @@ function App() {
                 style={{ display: 'none' }}
               />
               <button
-                type="button"
                 className="input-attach-btn"
                 onClick={() => fileInputRef.current?.click()}
                 title="Attach image"
-                aria-label="Attach image"
+                type="button"
               >
-                <Paperclip size={18} strokeWidth={1.5} />
+                <Paperclip size={18} />
               </button>
 
               <textarea
@@ -519,7 +633,11 @@ function App() {
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
-                placeholder="Message AI Assistant..."
+                placeholder={
+                  isLoading
+                    ? 'AI is generating a response...'
+                    : 'Message JIM AI Assistant...'
+                }
                 rows={1}
                 disabled={isLoading}
                 aria-label="Message input"
@@ -540,5 +658,3 @@ function App() {
     </div>
   );
 }
-
-export default App;
