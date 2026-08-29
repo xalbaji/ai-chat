@@ -1,6 +1,6 @@
+require('dotenv').config({ override: true });
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
 
 const chatRoutes = require('./routes/chatRoutes');
 
@@ -22,4 +22,5 @@ app.get('/', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  console.log('SiliconFlow key loaded:', !!process.env.SILICONFLOW_API_KEY);
 });

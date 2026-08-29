@@ -1,4 +1,5 @@
 import React from 'react';
+import { Sparkles } from 'lucide-react';
 
 export function AppLogo({ size = 32, rounded = '12px', glow = false }) {
   const pixelSize = typeof size === 'number' ? `${size}px` : size;
@@ -10,49 +11,61 @@ export function AppLogo({ size = 32, rounded = '12px', glow = false }) {
         width: pixelSize,
         height: pixelSize,
         borderRadius: rounded,
+        position: 'relative',
+        display: 'grid',
+        placeItems: 'center',
       }}
     >
       <svg
         width="100%"
         height="100%"
-        viewBox="0 0 48 48"
+        viewBox="0 0 64 64"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
-          <linearGradient id="logoGradPrimary" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#FF9F43" />
-            <stop offset="50%" stopColor="#F27D26" />
-            <stop offset="100%" stopColor="#E05305" />
+          <linearGradient id="fritzPrimary" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#F9B26C" />
+            <stop offset="35%" stopColor="#F28B3A" />
+            <stop offset="70%" stopColor="#D9651C" />
+            <stop offset="100%" stopColor="#B9490F" />
           </linearGradient>
-          <linearGradient id="logoGradSecondary" x1="0" y1="48" x2="48" y2="0" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#6366F1" />
-            <stop offset="100%" stopColor="#4F46E5" />
+          <linearGradient id="fritzSecondary" x1="12" y1="52" x2="52" y2="12" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#F6D9A8" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.3" />
           </linearGradient>
-          <radialGradient id="logoGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#F27D26" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#F27D26" stopOpacity="0" />
+          <radialGradient id="fritzGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#F6A65A" stopOpacity="0.75" />
+            <stop offset="100%" stopColor="#F6A65A" stopOpacity="0" />
           </radialGradient>
         </defs>
 
-        {/* Outer Glow Disc */}
-        {glow && <circle cx="24" cy="24" r="22" fill="url(#logoGlow)" opacity="0.6" />}
+        {glow && <circle cx="32" cy="32" r="28" fill="url(#fritzGlow)" opacity="0.7" />}
 
-        {/* 3D Neural Diamond Base */}
-        <rect x="4" y="4" width="40" height="40" rx="12" fill="url(#logoGradPrimary)" />
+        <rect x="6" y="6" width="52" height="52" rx="16" fill="url(#fritzPrimary)" />
+        <rect x="6" y="6" width="52" height="52" rx="16" fill="url(#fritzSecondary)" opacity="0.18" />
 
-        <text
-          x="24"
-          y="35"
-          textAnchor="middle"
-          fontFamily="Plus Jakarta Sans, sans-serif"
-          fontSize="29"
-          fontWeight="800"
-          fill="#FFFFFF"
-        >
-          J
-        </text>
+        <path d="M22 18H42V22H27V30H39V34H27V46H22V18Z" fill="white" fillOpacity="0.96" />
+        <path d="M22 18H42V22H27V30H39V34H27V46H22V18Z" fill="url(#fritzSecondary)" fillOpacity="0.2" />
       </svg>
+
+      <div
+        style={{
+          position: 'absolute',
+          right: '4px',
+          bottom: '4px',
+          background: 'rgba(255,255,255,0.18)',
+          border: '1px solid rgba(255,255,255,0.35)',
+          borderRadius: '999px',
+          width: '18px',
+          height: '18px',
+          display: 'grid',
+          placeItems: 'center',
+          backdropFilter: 'blur(6px)',
+        }}
+      >
+        <Sparkles size={10} color="#fff7ed" strokeWidth={2.4} />
+      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@ const { generateResponse } = require('../services/chatService');
 
 const handleChat = async (req, res) => {
   try {
-    const { message, history } = req.body;
+    const { message, history } = req.body || {};
     const file = req.file;
 
     if ((!message || message.trim() === '') && !file) {
@@ -12,10 +12,18 @@ const handleChat = async (req, res) => {
       });
     }
 
-    const parsedHistory = history ? JSON.parse(history) : [];
-    const responseData = await generateResponse(message, file, parsedHistory);
+    let parsedHistory = [];
+    if (Array.isArray(history)) {
+      parsedHistory = history;
+    } else if (typeof history === 'string') {
+      try {
+        parsedHistory = JSON.parse(history);
+      } catch (error) {
+        parsedHistory = [];
+      }
+    }
 
-    // Always return 200 with the responseData — the frontend handles type/image/reply
+    const responseData = await generateResponse(message, file, parsedHistory);
     res.json(responseData);
   } catch (error) {
     console.error('Error handling chat request:', error);

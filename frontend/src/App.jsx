@@ -38,30 +38,93 @@ import {
   Hash,
   Paperclip,
   X,
+  Reply,
 } from 'lucide-react';
 import './App.css';
 import { AppLogo } from './components/AppLogo';
 
+const normalizeStoredSession = (session) => ({
+  ...session,
+  messages: (session.messages || []).map((message) => ({
+    ...message,
+    timestamp: message.timestamp ? new Date(message.timestamp) : new Date(),
+  })),
+});
+
+const normalizeStoredSessions = (sessionsList) => {
+  if (!Array.isArray(sessionsList)) return [];
+  return sessionsList.map(normalizeStoredSession);
+};
+
 export default function App() {
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      role: 'assistant',
-      content: "Hello! I'm your AI assistant. How can I help you today?",
-      timestamp: new Date(),
-    },
-  ]);
+  const [sessions, setSessions] = useState(() => {
+    try {
+      const saved = localStorage.getItem('chat_sessions');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const normalized = normalizeStoredSessions(parsed);
+        if (normalized.length > 0) {
+          return normalized;
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load saved sessions:', error);
+    }
+
+    return [
+      {
+        id: Date.now(),
+        title: 'New chat',
+        messages: [
+          {
+            id: 1,
+            role: 'assistant',
+            content: "Hello! I'm your AI assistant. How can I help you today?",
+            timestamp: new Date(),
+          },
+        ],
+      },
+    ];
+  });
+  const [currentSessionId, setCurrentSessionId] = useState(() => {
+    try {
+      const saved = localStorage.getItem('chat_sessions');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed[0].id;
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to restore active session:', error);
+    }
+
+    return Date.now();
+  });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
   const [input, setInput] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMode, setLoadingMode] = useState('thinking');
   const [copiedId, setCopiedId] = useState(null);
   const [showSidebar, setShowSidebar] = useState(true);
   const [darkMode, setDarkMode] = useState(true);
+  const [activeView, setActiveView] = useState('chat');
+  const [settings, setSettings] = useState({
+    compactMode: false,
+    soundOn: true,
+    saveHistory: true,
+    autoImageGen: true,
+    preferredModel: 'Gemini 2.5 Flash',
+  });
   const [isActivelyTyping, setIsActivelyTyping] = useState(false);
+  const [replyTarget, setReplyTarget] = useState(null);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const searchInputRef = useRef(null);
   const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
@@ -72,9 +135,20 @@ export default function App() {
     { icon: Lightbulb, label: 'Brainstorm', color: '#d97706', prompt: 'Give me 10 creative startup ideas' },
   ];
 
-  const history = [
-    { title: 'General Conversation', count: messages.length, active: true },
-  ];
+  const currentSession = sessions.find((session) => session.id === currentSessionId) || sessions[0];
+  const messages = currentSession?.messages || [];
+  const filteredSessions = sessions.filter((session) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+
+    const title = (session.title || '').toLowerCase();
+    const matchesTitle = title.includes(query);
+    const matchesContent = (session.messages || []).some((message) =>
+      (message.content || '').toLowerCase().includes(query)
+    );
+
+    return matchesTitle || matchesContent;
+  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -85,6 +159,11 @@ export default function App() {
       scrollToBottom();
     }
   }, [messages]);
+
+  useEffect(() => {
+    localStorage.setItem('chat_sessions', JSON.stringify(sessions));
+  }, [sessions]);
+
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   useEffect(() => {
@@ -216,72 +295,250 @@ How would you like to proceed? I can help you:
 - 📊 Analyze data patterns or brainstorm creative concepts.`;
   };
 
+  const handleNewChat = () => {
+    const newSession = {
+      id: Date.now(),
+      title: 'New chat',
+      messages: [
+        {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: "Hello! I'm your AI assistant. How can I help you today?",
+          timestamp: new Date(),
+        },
+      ],
+    };
+
+    setSessions((prev) => [newSession, ...prev]);
+    setCurrentSessionId(newSession.id);
+    setSearchQuery('');
+    setIsSearching(false);
+  };
+
+  const handleSelectSession = (id) => {
+    setCurrentSessionId(id);
+    setSearchQuery('');
+    setIsSearching(false);
+  };
+
+  const handleDeleteSession = (id) => {
+    setSessions((prev) => {
+      const filtered = prev.filter((session) => session.id !== id);
+      if (filtered.length === 0) {
+        const fallback = {
+          id: Date.now(),
+          title: 'New chat',
+          messages: [
+            {
+              id: Date.now() + 1,
+              role: 'assistant',
+              content: "Hello! I'm your AI assistant. How can I help you today?",
+              timestamp: new Date(),
+            },
+          ],
+        };
+        setCurrentSessionId(fallback.id);
+        return [fallback];
+      }
+
+      if (id === currentSessionId) {
+        setCurrentSessionId(filtered[0].id);
+      }
+      return filtered;
+    });
+  };
+
+  const focusSearch = () => {
+    searchInputRef.current?.focus();
+  };
+
+  const sidebarPromptSets = {
+    images: [
+      'Generate a cinematic portrait of a futuristic cyberpunk cat wearing a neon blue scarf in a studio scene.',
+      'Create a realistic fantasy landscape with a glowing lake, mountains, and a golden sunset sky.',
+      'Generate a polished product mockup of a premium smartwatch on a dark luxury stand.',
+      'Create a realistic superhero poster of a brave woman standing in a dramatic city skyline at night.',
+      'Generate a high-detail cartoon scene of a cheerful fox reading a book in a cozy forest cabin.',
+    ],
+    plugins: [
+      'Suggest 3 useful plugins for a modern AI chatbot workspace.',
+      'List 5 productivity plugins that would improve a developer AI assistant.',
+      'Recommend the best plugins for research, writing, and workflow automation in one AI app.',
+      'Suggest tools and plugins for building a smarter AI productivity dashboard.',
+      'Give me creative plugin ideas for a premium chatbot interface with team collaboration features.',
+    ],
+    research: [
+      'Do a deep research summary on how AI chatbots improve business productivity.',
+      'Research the latest trends in multimodal AI and summarize the biggest opportunities for startups.',
+      'Give me a concise research overview of how AI assistants are transforming customer support workflows.',
+      'Summarize the most important business impacts of generative AI across marketing, operations, and product.',
+      'Research how AI copilots are changing software development teams and explain the top benefits.',
+    ],
+  };
+
+  const getRandomSidebarPrompt = (type) => {
+    const prompts = sidebarPromptSets[type] || [];
+    if (!prompts.length) return 'Help me with something useful today.';
+    return prompts[Math.floor(Math.random() * prompts.length)];
+  };
+
+  const triggerSidebarPrompt = (prompt) => {
+    setActiveView('chat');
+    setInput(prompt);
+    inputRef.current?.focus();
+  };
+
+  const openSettingsPage = () => {
+    setActiveView('settings');
+  };
+
+  const openPricingPage = () => {
+    setActiveView('pricing');
+  };
+
+  const openHelpPage = () => {
+    setActiveView('help');
+  };
+
+  const seedQuickPrompt = (prompt) => {
+    setInput(prompt);
+    inputRef.current?.focus();
+  };
+
   const handleSend = async (overrideText) => {
-    const text = overrideText || input;
-    if ((!text.trim() && !selectedImage) || isLoading) return;
+    const rawText = overrideText || input;
+    const text = rawText.trim();
+    if ((!text && !selectedImage && !replyTarget?.imageUrl && !replyTarget?.generatedImage) || isLoading) return;
+
+    const replyInstruction = replyTarget?.content ? text : text;
+
+    const shouldShowDrawing = /(?:generate|create|draw|make|render|design|add|change).*(?:image|photo|picture|poster|portrait|scene|art|illustration|background|bowtie|hat|glasses|shirt)|(?:enhance|improve|upscale|beautify|fix).*?(?:image|photo|picture)/i.test(text) || Boolean(selectedImage);
+    const shouldWaitForImage = shouldShowDrawing || Boolean(selectedImage) || Boolean(replyTarget?.imageUrl || replyTarget?.generatedImage);
+
+    setLoadingMode(shouldShowDrawing ? 'drawing' : 'thinking');
+    const requestStart = Date.now();
+    let responseHasImage = false;
+
+    let uploadedImage = selectedImage;
+    const replyTargetImageUrl = replyTarget?.imageUrl || replyTarget?.generatedImage || null;
+
+    if (!uploadedImage && replyTargetImageUrl) {
+      try {
+        const imageResponse = await fetch(replyTargetImageUrl);
+        const blob = await imageResponse.blob();
+        uploadedImage = new File([blob], 'reply-target-image.png', {
+          type: blob.type || 'image/png',
+        });
+      } catch (error) {
+        console.warn('Failed to fetch reply target image:', error);
+      }
+    }
 
     const userMsg = {
       id: Date.now(),
       role: 'user',
-      content: text.trim(),
-      image: imagePreview,
+      content: replyInstruction,
+      image: imagePreview || replyTargetImageUrl,
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const sessionMessages = [...messages, userMsg];
 
-    const formData = new FormData();
-    formData.append('message', userMsg.content);
-    if (selectedImage) {
-      formData.append('image', selectedImage);
-    }
-    formData.append(
-      'history',
-      JSON.stringify(
-        messages
-          .filter((m) => m.id !== 1)
-          .map((m) => ({ role: m.role, content: m.content }))
-      )
-    );
+    setSessions((prev) => prev.map((session) => {
+      if (session.id !== currentSessionId) return session;
+
+      const title = session.title === 'New chat' ? text.trim().slice(0, 28) : session.title;
+      return {
+        ...session,
+        title,
+        messages: sessionMessages,
+      };
+    }));
+
+    const historyPayload = sessionMessages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
 
     setInput('');
     setSelectedImage(null);
     setImagePreview(null);
+    setReplyTarget(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (inputRef.current) inputRef.current.style.height = 'auto';
     setIsLoading(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/chat', {
-        method: 'POST',
-        body: formData,
-      });
+      let res;
+
+      if (uploadedImage) {
+        const formData = new FormData();
+        formData.append('message', userMsg.content || 'Explain this image');
+        formData.append('image', uploadedImage);
+        formData.append('history', JSON.stringify(historyPayload));
+        res = await fetch('http://localhost:5000/api/chat', {
+          method: 'POST',
+          body: formData,
+        });
+      } else {
+        res = await fetch('http://localhost:5000/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: userMsg.content,
+            history: historyPayload,
+          }),
+        });
+      }
 
       if (!res.ok) throw new Error('API request failed');
       const data = await res.json();
+      const imageUrl = data.generatedImage || data.imageUrl || null;
+      responseHasImage = Boolean(imageUrl);
 
       const botMsg = {
         id: Date.now() + 1,
         role: 'assistant',
         content: data.reply,
-        generatedImage: data.generatedImage || null,
+        generatedImage: imageUrl,
+        imageUrl,
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, botMsg]);
+
+      setSessions((prev) => prev.map((session) => {
+        if (session.id !== currentSessionId) return session;
+        return {
+          ...session,
+          messages: [...session.messages, botMsg],
+        };
+      }));
     } catch {
-      // Fallback AI response simulation if backend API is offline
       await new Promise((resolve) => setTimeout(resolve, 800));
       const simulatedReply = getSimulatedResponse(userMsg.content);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          role: 'assistant',
-          content: simulatedReply,
-          timestamp: new Date(),
-        },
-      ]);
+      setSessions((prev) => prev.map((session) => {
+        if (session.id !== currentSessionId) return session;
+        return {
+          ...session,
+          messages: [
+            ...session.messages,
+            {
+              id: Date.now() + 1,
+              role: 'assistant',
+              content: simulatedReply,
+              timestamp: new Date(),
+            },
+          ],
+        };
+      }));
     } finally {
+      const elapsed = Date.now() - requestStart;
+      const minDelay = shouldWaitForImage ? 900 : 500;
+      const imageRenderDelay = shouldWaitForImage && responseHasImage ? 450 : 0;
+      const totalDelay = Math.max(0, minDelay - elapsed) + imageRenderDelay;
+
+      if (totalDelay > 0) {
+        await new Promise((resolve) => setTimeout(resolve, totalDelay));
+      }
       setIsLoading(false);
     }
   };
@@ -300,18 +557,15 @@ How would you like to proceed? I can help you:
   };
 
   const clearChat = () => {
-    setMessages([
-      {
-        id: Date.now(),
-        role: 'assistant',
-        content: "Hello! I'm your AI assistant. How can I help you today?",
-        timestamp: new Date(),
-      },
-    ]);
+    handleNewChat();
   };
 
   const formatTime = (date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const safeDate = date instanceof Date ? date : new Date(date);
+    if (Number.isNaN(safeDate.getTime())) {
+      return 'Now';
+    }
+    return safeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const isConsecutive = (index) => {
@@ -319,11 +573,182 @@ How would you like to proceed? I can help you:
     return messages[index].role === messages[index - 1].role;
   };
 
-  const isWelcomeVisible = messages.length === 1 && messages[0].role === 'assistant';
+  const isWelcomeVisible = messages.length === 0 || (messages.length === 1 && messages[0].role === 'assistant');
   const isUserTyping = input.trim().length > 0 || isActivelyTyping;
 
+  const renderPageView = () => {
+    if (activeView === 'settings') {
+      return (
+        <div className="page-shell settings-page">
+          <div className="page-header-row">
+            <div>
+              <p className="page-eyebrow">Preferences</p>
+              <h2 className="page-title">Settings</h2>
+            </div>
+            <button className="secondary-btn" onClick={() => setActiveView('chat')}>Back to chat</button>
+          </div>
+
+          <div className="settings-grid">
+            <div className="setting-card">
+              <div className="setting-row">
+                <div>
+                  <h3>Dark mode</h3>
+                  <p>Switch between dark and light themes.</p>
+                </div>
+                <button
+                  className={`toggle ${darkMode ? 'on' : ''}`}
+                  onClick={() => setDarkMode((prev) => !prev)}
+                  aria-label="Toggle dark mode"
+                >
+                  <span className="toggle-knob" />
+                </button>
+              </div>
+
+              <div className="setting-row">
+                <div>
+                  <h3>Compact layout</h3>
+                  <p>Reduce spacing for a denser chat view.</p>
+                </div>
+                <button
+                  className={`toggle ${settings.compactMode ? 'on' : ''}`}
+                  onClick={() => setSettings((prev) => ({ ...prev, compactMode: !prev.compactMode }))}
+                  aria-label="Toggle compact mode"
+                >
+                  <span className="toggle-knob" />
+                </button>
+              </div>
+
+              <div className="setting-row">
+                <div>
+                  <h3>Sound alerts</h3>
+                  <p>Play notification sounds for responses.</p>
+                </div>
+                <button
+                  className={`toggle ${settings.soundOn ? 'on' : ''}`}
+                  onClick={() => setSettings((prev) => ({ ...prev, soundOn: !prev.soundOn }))}
+                  aria-label="Toggle sound alerts"
+                >
+                  <span className="toggle-knob" />
+                </button>
+              </div>
+            </div>
+
+            <div className="setting-card">
+              <div className="setting-select-wrap">
+                <label htmlFor="model-select">Preferred model</label>
+                <select
+                  id="model-select"
+                  value={settings.preferredModel}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, preferredModel: e.target.value }))}
+                >
+                  <option>Gemini 2.5 Flash</option>
+                  <option>GPT-4o mini</option>
+                  <option>Claude 3.5 Sonnet</option>
+                  <option>Local model</option>
+                </select>
+              </div>
+
+              <div className="setting-row">
+                <div>
+                  <h3>Save chat history</h3>
+                  <p>Keep your conversations across sessions.</p>
+                </div>
+                <button
+                  className={`toggle ${settings.saveHistory ? 'on' : ''}`}
+                  onClick={() => setSettings((prev) => ({ ...prev, saveHistory: !prev.saveHistory }))}
+                  aria-label="Toggle save chat history"
+                >
+                  <span className="toggle-knob" />
+                </button>
+              </div>
+
+              <div className="setting-row">
+                <div>
+                  <h3>Auto image generation</h3>
+                  <p>Generate images automatically when the prompt fits.</p>
+                </div>
+                <button
+                  className={`toggle ${settings.autoImageGen ? 'on' : ''}`}
+                  onClick={() => setSettings((prev) => ({ ...prev, autoImageGen: !prev.autoImageGen }))}
+                  aria-label="Toggle auto image generation"
+                >
+                  <span className="toggle-knob" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeView === 'pricing') {
+      return (
+        <div className="page-shell pricing-page">
+          <div className="page-header-row">
+            <div>
+              <p className="page-eyebrow">Plans</p>
+              <h2 className="page-title">See plans and pricing</h2>
+            </div>
+            <button className="secondary-btn" onClick={() => setActiveView('chat')}>Back to chat</button>
+          </div>
+
+          <div className="pricing-grid">
+            <div className="pricing-card">
+              <span className="plan-badge">Free</span>
+              <h3>Starter</h3>
+              <div className="price">$0</div>
+              <ul>
+                <li>Basic chat access</li>
+                <li>Limited image creation</li>
+                <li>Community support</li>
+              </ul>
+            </div>
+
+            <div className="pricing-card featured">
+              <span className="plan-badge">Popular</span>
+              <h3>Pro</h3>
+              <div className="price">$12<span>/mo</span></div>
+              <ul>
+                <li>Unlimited prompts</li>
+                <li>Priority image generation</li>
+                <li>Advanced tools</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeView === 'help') {
+      return (
+        <div className="page-shell help-page">
+          <div className="page-header-row">
+            <div>
+              <p className="page-eyebrow">Support</p>
+              <h2 className="page-title">Help</h2>
+            </div>
+            <button className="secondary-btn" onClick={() => setActiveView('chat')}>Back to chat</button>
+          </div>
+
+          <div className="help-box">
+            <h3>Need help?</h3>
+            <p>Try one of these quick fixes:</p>
+            <ul>
+              <li>Refresh the page if the app stops responding.</li>
+              <li>Check the backend server is running on port 5000.</li>
+              <li>Use a shorter message if the model is overloaded.</li>
+              <li>Open Settings to adjust model and preferences.</li>
+            </ul>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
-    <div className={`app-container ${darkMode ? 'dark' : ''}`}>
+    <div className={`app-container ${darkMode ? 'dark' : 'light'}`}>
       {/* SIDEBAR */}
       <aside className={`sidebar ${showSidebar ? 'open' : 'closed'}`}>
         <div className="sidebar-top">
@@ -336,39 +761,84 @@ How would you like to proceed? I can help you:
             </button>
           </div>
 
-          <button className="new-chat-btn" onClick={clearChat}>
+          <button className="new-chat-btn" onClick={handleNewChat}>
             <MessageSquarePlus size={18} strokeWidth={1.8} />
             <span>New chat</span>
           </button>
 
-          <button className="nav-item"><Search size={18} strokeWidth={1.8} /><span>Search chats</span></button>
-          <button className="nav-item"><Images size={18} strokeWidth={1.8} /><span>Images</span></button>
-          <button className="nav-item"><Plug size={18} strokeWidth={1.8} /><span>Plugins</span></button>
-          <button className="nav-item"><Telescope size={18} strokeWidth={1.8} /><span>Deep research</span></button>
+          <div className="sidebar-search-container">
+            <Search size={16} strokeWidth={1.8} className="sidebar-search-icon" />
+            <input
+              type="text"
+              placeholder="Search chats..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setIsSearching(Boolean(e.target.value.trim()));
+              }}
+              className="sidebar-search-input"
+            />
+          </div>
+          <button className="nav-item" onClick={() => triggerSidebarPrompt(getRandomSidebarPrompt('images'))}>
+            <Images size={18} strokeWidth={1.8} /><span>Images</span>
+          </button>
+          <button className="nav-item" onClick={() => triggerSidebarPrompt(getRandomSidebarPrompt('plugins'))}>
+            <Plug size={18} strokeWidth={1.8} /><span>Plugins</span>
+          </button>
+          <button className="nav-item" onClick={() => triggerSidebarPrompt(getRandomSidebarPrompt('research'))}>
+            <Telescope size={18} strokeWidth={1.8} /><span>Deep research</span>
+          </button>
         </div>
 
         <div className="sidebar-scroll">
           <div className="history-list">
-            {history.map((item, i) => (
-              <div key={i} className={`history-item ${item.active ? 'active' : ''}`}>
+            <div className="history-section-title">Recent</div>
+            {filteredSessions.map((session) => (
+              <div
+                key={session.id}
+                className={`history-item ${session.id === currentSessionId ? 'active' : ''}`}
+                onClick={() => handleSelectSession(session.id)}
+              >
                 <MessageSquare size={14} strokeWidth={2} className="history-icon" />
                 <div className="history-body">
-                  <span className="history-title">{item.title}</span>
-                  <span className="history-meta">{item.count} messages</span>
+                  <span className="history-title">
+                    {(session.title || 'New chat').length > 25
+                      ? `${(session.title || 'New chat').substring(0, 25)}...`
+                      : (session.title || 'New chat')}
+                  </span>
+                  <span className="history-meta">{(session.messages || []).length} messages</span>
                 </div>
-                {item.active && <div className="history-active-dot" />}
+                <button
+                  className="history-delete-btn"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleDeleteSession(session.id);
+                  }}
+                  aria-label={`Delete ${session.title || 'chat'}`}
+                  title="Delete chat"
+                >
+                  ×
+                </button>
+                {session.id === currentSessionId && <div className="history-active-dot" />}
               </div>
             ))}
+            {filteredSessions.length === 0 && (
+              <div className="history-empty">No matching chats</div>
+            )}
           </div>
         </div>
 
         <div className="sidebar-bottom">
-          <button className="menu-item">
+          <button className="menu-item" onClick={openPricingPage}>
             <span><span className="menu-icon"><Sparkles size={17} strokeWidth={1.8} /></span>See plans and pricing</span>
             <ExternalLink size={14} strokeWidth={1.8} />
           </button>
-          <button className="menu-item"><span><span className="menu-icon"><Settings size={17} strokeWidth={1.8} /></span>Settings</span></button>
-          <button className="menu-item"><span><span className="menu-icon"><CircleHelp size={17} strokeWidth={1.8} /></span>Help</span><ExternalLink size={14} strokeWidth={1.8} /></button>
+          <button className="menu-item" onClick={openSettingsPage}>
+            <span><span className="menu-icon"><Settings size={17} strokeWidth={1.8} /></span>Settings</span>
+          </button>
+          <button className="menu-item" onClick={openHelpPage}>
+            <span><span className="menu-icon"><CircleHelp size={17} strokeWidth={1.8} /></span>Help</span><ExternalLink size={14} strokeWidth={1.8} />
+          </button>
           <div className="login-prompt">
             <strong>Get responses tailored to you</strong>
             <p>Log in to get answers based on saved chats, plus create images and upload files.</p>
@@ -389,7 +859,7 @@ How would you like to proceed? I can help you:
               <PanelLeft size={18} strokeWidth={1.7} />
             </button>
             <div className="header-title-group">
-              <div className="header-title">JIM AI <ChevronDown size={15} strokeWidth={1.8} /></div>
+              <div className="header-title">FRITZ AI <ChevronDown size={15} strokeWidth={1.8} /></div>
             </div>
           </div>
           <div className="header-actions">
@@ -398,46 +868,49 @@ How would you like to proceed? I can help you:
           </div>
         </header>
 
-        <div className="chat-scroll">
-          {/* WELCOME SCREEN */}
-          {isWelcomeVisible && (
-            <div className="welcome-wrap">
-              <div className="welcome-hero">
-                <div className="hero-mark">
-                  <AppLogo size={44} rounded="14px" glow={true} />
+        {activeView !== 'chat' ? (
+          renderPageView()
+        ) : (
+          <div className="chat-scroll">
+            {/* WELCOME SCREEN */}
+            {isWelcomeVisible && (
+              <div className="welcome-wrap">
+                <div className="welcome-hero">
+                  <div className="hero-mark">
+                    <AppLogo size={44} rounded="14px" glow={true} />
+                  </div>
+                  <h1 className="hero-title">
+                    How can I help you <br />
+                    <span className="italic-text">today, Melvin?</span>
+                  </h1>
+                  <p className="hero-desc">
+                    Ask me anything — coding, writing, analysis, brainstorming, or image generation.
+                  </p>
                 </div>
-                <h1 className="hero-title">
-                  How can I help you <br />
-                  <span className="italic-text">today, Melvin?</span>
-                </h1>
-                <p className="hero-desc">
-                  Ask me anything — coding, writing, analysis, brainstorming, or image generation.
-                </p>
-              </div>
 
-              <div className="suggestion-grid">
-                {suggestions.map((s, i) => (
-                  <button
-                    key={i}
-                    className="suggestion-tile"
-                    onClick={() => handleSend(s.prompt)}
-                    style={{ animationDelay: `${0.1 + i * 0.06}s` }}
-                  >
-                    <div className="tile-dot" style={{ background: s.color }} />
-                    <div className="tile-body">
-                      <span className="tile-label">{s.label}</span>
-                      <span className="tile-desc">{s.prompt}</span>
-                    </div>
-                    <ArrowUpRight size={14} strokeWidth={2} className="tile-arrow" />
-                  </button>
-                ))}
+                <div className="suggestion-grid">
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      className="suggestion-tile"
+                      onClick={() => handleSend(s.prompt)}
+                      style={{ animationDelay: `${0.1 + i * 0.06}s` }}
+                    >
+                      <div className="tile-dot" style={{ background: s.color }} />
+                      <div className="tile-body">
+                        <span className="tile-label">{s.label}</span>
+                        <span className="tile-desc">{s.prompt}</span>
+                      </div>
+                      <ArrowUpRight size={14} strokeWidth={2} className="tile-arrow" />
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* MESSAGE FEED */}
-          {!isWelcomeVisible && (
-            <div className="message-list">
+            {/* MESSAGE FEED */}
+            {!isWelcomeVisible && (
+              <div className="message-list">
               {messages.map((msg, index) => {
                 const consecutive = isConsecutive(index);
                 return (
@@ -451,7 +924,7 @@ How would you like to proceed? I can help you:
                           {msg.role === 'user' ? (
                             'MS'
                           ) : (
-                            <AppLogo size={36} rounded="12px" glow={false} />
+                            'F'
                           )}
                         </div>
                       </div>
@@ -462,7 +935,7 @@ How would you like to proceed? I can help you:
                       {!consecutive && (
                         <div className="msg-meta">
                           <span className="msg-author">
-                            {msg.role === 'user' ? 'Melvin Suan' : 'JIM AI'}
+                            {msg.role === 'user' ? 'Melvin Suan' : 'FRITZ AI'}
                           </span>
                           <span className="msg-time">
                             <Clock size={10} strokeWidth={2} />
@@ -477,9 +950,9 @@ How would you like to proceed? I can help you:
                           </div>
                         )}
 
-                        {msg.generatedImage && (
+                        {(msg.imageUrl || msg.generatedImage) && (
                           <div className="msg-generated-image">
-                            <img src={msg.generatedImage} alt="Generated content" />
+                            <img src={msg.imageUrl || msg.generatedImage} alt="Generated content" />
                           </div>
                         )}
 
@@ -532,6 +1005,14 @@ How would you like to proceed? I can help you:
                             )}
                             <span>{copiedId === msg.id ? 'Copied' : 'Copy'}</span>
                           </button>
+                          <button
+                            className="tool-btn"
+                            onClick={() => setReplyTarget(msg)}
+                            title="Reply to this message"
+                          >
+                            <Reply size={12} strokeWidth={2} />
+                            <span>Reply</span>
+                          </button>
                           <button className="tool-btn" title="Helpful">
                             <ThumbsUp size={12} strokeWidth={2} />
                           </button>
@@ -556,104 +1037,127 @@ How would you like to proceed? I can help you:
                     </div>
                   </div>
                   <div className="msg-body">
-                    <div className="typing-box">
+                    <div className={`typing-box ${loadingMode === 'drawing' ? 'drawing-mode' : 'thinking-mode'}`}>
+                      <div className="loading-icon-wrap">
+                        {loadingMode === 'drawing' ? (
+                          <PenLine size={14} strokeWidth={2.2} className="loading-icon" />
+                        ) : (
+                          <Sparkles size={14} strokeWidth={2.2} className="loading-icon" />
+                        )}
+                      </div>
                       <div className="typing-wave">
                         <span /><span /><span />
                       </div>
-                      <span className="typing-label">Neural Synthesis in Progress...</span>
+                      <span className="typing-label">
+                        {loadingMode === 'drawing' ? 'FRITZ AI is drawing...' : 'FRITZ AI is thinking...'}
+                      </span>
                     </div>
                   </div>
                 </div>
               )}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-        </div>
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
+        )}
 
-        {/* INPUT FORM */}
-        <div className="chat-footer">
-          {/* DYNAMIC STATUS BAR */}
-          {(isUserTyping || isLoading) && (
-            <div className="chat-status-bar">
-              {isUserTyping && !isLoading && (
-                <div className="status-pill typing">
-                  <span className="pill-pulse-dot" />
-                  <span>Neural Pulse Active · Drafting prompt...</span>
-                </div>
-              )}
-              {isLoading && (
-                <div className="status-pill processing">
-                  <span className="pill-pulse-dot" />
-                  <span>3D Neural Core synthesizing response...</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div
-            className={`input-shell ${isUserTyping && !isLoading ? 'is-typing neural-pulse' : ''} ${isLoading ? 'is-processing' : ''}`}
-          >
-            {isLoading && <div className="processing-indicator-line" />}
-
-            {imagePreview && (
-              <div className="image-preview-bar">
-                <div className="image-preview-thumb">
-                  <img src={imagePreview} alt="Preview" />
-                  <button
-                    className="image-preview-remove"
-                    onClick={removeSelectedImage}
-                    title="Remove image"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
+        {activeView === 'chat' && (
+          <div className="chat-footer">
+            {/* DYNAMIC STATUS BAR */}
+            {(isUserTyping || isLoading) && (
+              <div className="chat-status-bar">
+                {isUserTyping && !isLoading && (
+                  <div className="status-pill typing">
+                    <span className="pill-pulse-dot" />
+                    <span>Neural Pulse Active · Drafting prompt...</span>
+                  </div>
+                )}
+                {isLoading && (
+                  <div className="status-pill processing">
+                    <span className="pill-pulse-dot" />
+                    <span>
+                      {loadingMode === 'drawing'
+                        ? 'Rendering your image...'
+                        : '3D Neural Core synthesizing response...'}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
-            <div className="input-box">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImageChange}
-                accept="image/*"
-                style={{ display: 'none' }}
-              />
-              <button
-                className="input-attach-btn"
-                onClick={() => fileInputRef.current?.click()}
-                title="Attach image"
-                type="button"
-              >
-                <Paperclip size={18} />
-              </button>
+            <div
+              className={`input-shell ${isUserTyping && !isLoading ? 'is-typing neural-pulse' : ''} ${isLoading ? 'is-processing' : ''}`}
+            >
+              {isLoading && <div className="processing-indicator-line" />}
 
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
-                placeholder={
-                  isLoading
-                    ? 'AI is generating a response...'
-                    : 'Message JIM AI Assistant...'
-                }
-                rows={1}
-                disabled={isLoading}
-                aria-label="Message input"
-              />
-              <button
-                className={`send-fab ${(input.trim() || selectedImage) && !isLoading ? 'active' : ''}`}
-                onClick={() => handleSend()}
-                disabled={(!input.trim() && !selectedImage) || isLoading}
-                aria-label="Send message"
-              >
-                <ArrowUpRight size={18} strokeWidth={2} />
-              </button>
+              {replyTarget && (
+                <div className="reply-context-bar">
+                  <span className="reply-context-label">Replying to:</span>
+                  <span className="reply-context-text">{replyTarget.content.replace(/\s+/g, ' ').trim().slice(0, 90)}{replyTarget.content.length > 90 ? '…' : ''}</span>
+                  <button className="reply-clear-btn" onClick={() => setReplyTarget(null)} type="button">Cancel</button>
+                </div>
+              )}
+
+              {imagePreview && (
+                <div className="image-preview-bar">
+                  <div className="image-preview-thumb">
+                    <img src={imagePreview} alt="Preview" />
+                    <button
+                      className="image-preview-remove"
+                      onClick={removeSelectedImage}
+                      title="Remove image"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="input-box">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleImageChange}
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                />
+                <button
+                  className="input-attach-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Attach image"
+                  type="button"
+                >
+                  <Paperclip size={18} />
+                </button>
+
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
+                  placeholder={
+                    isLoading
+                      ? 'AI is generating a response...'
+                      : 'Message FRITZ AI...'
+                  }
+                  rows={1}
+                  disabled={isLoading}
+                  aria-label="Message input"
+                />
+                <button
+                  className={`send-fab ${(input.trim() || selectedImage) && !isLoading ? 'active' : ''}`}
+                  onClick={() => handleSend()}
+                  disabled={(!input.trim() && !selectedImage) || isLoading}
+                  aria-label="Send message"
+                >
+                  <ArrowUpRight size={18} strokeWidth={2} />
+                </button>
+              </div>
             </div>
+            <p className="footer-note">AI can make mistakes. Consider verifying important information.</p>
           </div>
-          <p className="footer-note">AI can make mistakes. Consider verifying important information.</p>
-        </div>
+        )}
       </main>
     </div>
   );
