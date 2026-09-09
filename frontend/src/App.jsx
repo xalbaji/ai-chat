@@ -663,16 +663,20 @@ How would you like to proceed? I can help you:
           JSON.stringify(historyPayload)
         );
 
+        const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
         res = await fetch(
-          'http://localhost:5000/api/chat',
+          `${API_BASE_URL}/api/chat`,
           {
             method: 'POST',
             body: formData,
           }
         );
       } else {
+        const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
         res = await fetch(
-          'http://localhost:5000/api/chat',
+          `${API_BASE_URL}/api/chat`,
           {
             method: 'POST',
             headers: {
